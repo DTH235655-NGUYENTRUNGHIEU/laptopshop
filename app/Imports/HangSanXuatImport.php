@@ -3,15 +3,33 @@
 namespace App\Imports;
 
 use App\Models\HangSanXuat;
-use Illuminate\Database\Eloquent\Model;
-use Maatwebsite\Excel\Concerns\ToModel;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
+use Maatwebsite\Excel\Concerns\ToCollection;
+use Maatwebsite\Excel\Concerns\WithHeadingRow;
 
-class HangSanXuatImport implements ToModel
+class HangSanXuatImport implements ToCollection, WithHeadingRow
 {
-    public function model(array $row): Model|null
+    public function collection(Collection $rows): void
     {
-        return new HangSanXuat([
-            //
-        ]);
+        foreach ($rows as $row) {
+            if (empty($row['tenhang'])) {
+                continue;
+            }
+
+            $tenhang = trim((string) $row['tenhang']);
+            $slug = !empty($row['tenhang_slug'])
+                ? trim((string) $row['tenhang_slug'])
+                : Str::slug($tenhang, '-');
+
+            HangSanXuat::updateOrCreate(
+                ['tenhang_slug' => $slug],
+                [
+                    'tenhang' => $tenhang,
+                    'hinhanh' => $row['hinhanh'] ?? null,
+                    'quocgia' => $row['quocgia'] ?? null,
+                ]
+            );
+        }
     }
 }
