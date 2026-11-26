@@ -25,6 +25,5 @@
 </IfModule>
 
 <Files .env>
-    Order allow,deny    
-    Deny from all
+    Require all denied
 </Files>
