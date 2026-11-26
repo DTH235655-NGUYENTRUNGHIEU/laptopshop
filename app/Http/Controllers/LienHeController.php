@@ -46,8 +46,15 @@ class LienHeController extends Controller
         ]);
 
         $orm = LienHe::findOrFail($id);
-        $orm->trangthai = $request->trangthai;
-        $orm->phanhoi_admin = $request->phanhoi_admin;
+        $trangThaiMoi = $request->input('trangthai');
+
+        // Tự động chuyển sang "Đã xử lý" nếu đã nhập nội dung phản hồi mà quên đổi dropdown
+        if ($trangThaiMoi === 'chua_xuly' && $request->filled('phanhoi_admin')) {
+            $trangThaiMoi = 'da_xuly';
+        }
+
+        $orm->trangthai = $trangThaiMoi;
+        $orm->phanhoi_admin = $request->input('phanhoi_admin');
         $orm->save();
 
         return redirect()->route('admin.lienhe')
