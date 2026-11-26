@@ -13,11 +13,14 @@ use App\Models\SanPham;
 use App\Models\User;
 use Exception;
 use Gloudemans\Shoppingcart\Facades\Cart;
+use GuzzleHttp\Client;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Laravel\Socialite\Facades\Socialite;
+use Laravel\Socialite\Two\GoogleProvider;
 
 class HomeController extends Controller
 {
@@ -84,13 +87,13 @@ class HomeController extends Controller
     // =========================================================================
     // DANH SÁCH, BỘ LỌC & TÌM KIẾM SẢN PHẨM
     // =========================================================================
-    public function getSanPham(Request $request, $tenloai_slug = '')
+    public function getSanPham(Request $request, string $tenloai_slug = '')
     {
         $query = SanPham::with(['LoaiSanPham', 'HangSanXuat'])->where('trangthai', 1);
         $title = 'Tất cả Laptop';
         $loaiHienTai = null;
 
-        if (!empty($tenloai_slug)) {
+        if ($tenloai_slug !== '') {
             $loaiHienTai = LoaiSanPham::where('tenloai_slug', $tenloai_slug)->firstOrFail();
             $query->where('loaisanpham_id', $loaiHienTai->id);
             $title = $loaiHienTai->tenloai;
@@ -99,7 +102,7 @@ class HomeController extends Controller
         return $this->renderDanhSachSanPham($request, $query, $title, $loaiHienTai, null);
     }
 
-    public function getSanPhamTheoHang(Request $request, $tenhang_slug)
+    public function getSanPhamTheoHang(Request $request, string $tenhang_slug)
     {
         $hangHienTai = HangSanXuat::where('tenhang_slug', $tenhang_slug)->firstOrFail();
         $query = SanPham::with(['LoaiSanPham', 'HangSanXuat'])
@@ -134,9 +137,13 @@ class HomeController extends Controller
         return $this->renderDanhSachSanPham($request, $query, $title, null, null);
     }
 
-    private function renderDanhSachSanPham(Request $request, $query, string $title, $loaiHienTai, $hangHienTai)
-    {
-        // Lọc bổ sung theo hãng / loại từ thanh sidebar
+    private function renderDanhSachSanPham(
+        Request $request,
+        Builder $query,
+        string $title,
+        ?LoaiSanPham $loaiHienTai,
+        ?HangSanXuat $hangHienTai
+    ) {
         if (!$loaiHienTai && $request->filled('loai')) {
             $query->where('loaisanpham_id', (int) $request->loai);
         }
@@ -145,7 +152,6 @@ class HomeController extends Controller
             $query->where('hangsanxuat_id', (int) $request->hang);
         }
 
-        // Lọc theo tầm giá (dựa trên giá thực tế: ưu tiên giakhuyenmai nếu có)
         if ($request->filled('mucgia')) {
             match ($request->mucgia) {
                 'duoi-15' => $query->whereRaw('COALESCE(giakhuyenmai, dongia) < 15000000'),
@@ -156,7 +162,6 @@ class HomeController extends Controller
             };
         }
 
-        // Sắp xếp
         match ($request->input('sapxep', 'moi-nhat')) {
             'gia-tang' => $query->orderByRaw('COALESCE(giakhuyenmai, dongia) ASC'),
             'gia-giam' => $query->orderByRaw('COALESCE(giakhuyenmai, dongia) DESC'),
@@ -181,7 +186,7 @@ class HomeController extends Controller
     // =========================================================================
     // CHI TIẾT LAPTOP
     // =========================================================================
-    public function getSanPham_ChiTiet($tenloai_slug = '', $tensanpham_slug = '')
+    public function getSanPham_ChiTiet(string $tenloai_slug = '', string $tensanpham_slug = '')
     {
         $sanpham = SanPham::with([
             'LoaiSanPham',
@@ -256,7 +261,7 @@ class HomeController extends Controller
         return view('frontend.giohang', compact('tamTinh', 'tienGiam', 'tongCong', 'voucher'));
     }
 
-    public function getGioHang_Them(Request $request, $tensanpham_slug = '')
+    public function getGioHang_Them(Request $request, string $tensanpham_slug = '')
     {
         $sanpham = SanPham::with('LoaiSanPham')
             ->where('tensanpham_slug', $tensanpham_slug)
@@ -269,19 +274,19 @@ class HomeController extends Controller
 
         $giaBan = $sanpham->giakhuyenmai ?? $sanpham->dongia;
 
-        Cart::add([
-            'id' => $sanpham->id,
-            'name' => $sanpham->tensanpham,
-            'price' => (int) $giaBan,
-            'qty' => 1,
-            'weight' => 0,
-            'options' => [
+        Cart::add(
+            $sanpham->id,
+            $sanpham->tensanpham,
+            1,
+            (float) $giaBan,
+            0,
+            [
                 'image' => $sanpham->hinhanh,
                 'slug' => $sanpham->tensanpham_slug,
                 'loai_slug' => $sanpham->LoaiSanPham->tenloai_slug ?? 'laptop',
                 'masanpham' => $sanpham->masanpham,
-            ],
-        ]);
+            ]
+        );
 
         if ($request->boolean('muangay')) {
             return redirect()->route('frontend.giohang');
@@ -290,7 +295,7 @@ class HomeController extends Controller
         return redirect()->back()->with('success', 'Đã thêm "' . $sanpham->tensanpham . '" vào giỏ hàng.');
     }
 
-    public function getGioHang_Xoa($row_id)
+    public function getGioHang_Xoa(string $row_id)
     {
         try {
             Cart::remove($row_id);
@@ -301,7 +306,7 @@ class HomeController extends Controller
         return redirect()->route('frontend.giohang')->with('success', 'Đã xóa sản phẩm khỏi giỏ hàng.');
     }
 
-    public function getGioHang_Giam($row_id)
+    public function getGioHang_Giam(string $row_id)
     {
         try {
             $row = Cart::get($row_id);
@@ -315,7 +320,7 @@ class HomeController extends Controller
         return redirect()->route('frontend.giohang');
     }
 
-    public function getGioHang_Tang($row_id)
+    public function getGioHang_Tang(string $row_id)
     {
         try {
             $row = Cart::get($row_id);
@@ -413,13 +418,13 @@ class HomeController extends Controller
     // =========================================================================
     // TIN TỨC & BÀI VIẾT
     // =========================================================================
-    public function getBaiViet($tenchude_slug = '')
+    public function getBaiViet(string $tenchude_slug = '')
     {
         $dsChuDe = ChuDe::withCount(['BaiViet' => function ($q) {
             $q->where('kichhoat', 1)->where('kiemduyet', 1);
         }])->orderBy('id')->get();
 
-        if (empty($tenchude_slug)) {
+        if ($tenchude_slug === '') {
             $title = 'Tất cả tin tức công nghệ';
             $baiviet = BaiViet::with(['ChuDe', 'User'])
                 ->where('kichhoat', 1)
@@ -440,7 +445,7 @@ class HomeController extends Controller
         return view('frontend.baiviet', compact('title', 'baiviet', 'dsChuDe', 'tenchude_slug'));
     }
 
-    public function getBaiViet_ChiTiet($tenchude_slug = '', $tieude_slug = '')
+    public function getBaiViet_ChiTiet(string $tenchude_slug = '', string $tieude_slug = '')
     {
         $query = BaiViet::with([
             'ChuDe',
@@ -458,7 +463,6 @@ class HomeController extends Controller
             $baiviet = $query->where('tieude_slug', $tieude_slug)->firstOrFail();
         }
 
-        // Tăng lượt xem (chống cộng dồn trong cùng phiên session)
         $sessionKey = 'da_xem_baiviet_' . $baiviet->id;
         if (!session()->has($sessionKey)) {
             $baiviet->increment('luotxem');
@@ -533,8 +537,10 @@ class HomeController extends Controller
     public function getGoogleCallback()
     {
         try {
-            $googleUser = Socialite::driver('google')
-                ->setHttpClient(new \GuzzleHttp\Client(['verify' => false]))
+            /** @var GoogleProvider $driver */
+            $driver = Socialite::driver('google');
+            $googleUser = $driver
+                ->setHttpClient(new Client(['verify' => false]))
                 ->stateless()
                 ->user();
         } catch (Exception $e) {
