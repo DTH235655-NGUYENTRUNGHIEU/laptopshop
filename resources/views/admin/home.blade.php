@@ -67,7 +67,7 @@
                 Biểu đồ doanh thu năm {{ $namHienTai }} (VNĐ)
             </div>
             <div class="card-body">
-                <canvas id="revenueChart" height="110"></canvas>
+                <canvas id="revenueChart" height="110" data-revenue="{{ json_encode($doanhThuTheoThang) }}"></canvas>
             </div>
         </div>
     </div>
@@ -159,13 +159,15 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
     const ctx = document.getElementById('revenueChart');
+    const doanhThuTheoThang = JSON.parse(ctx.dataset.revenue || '[]');
+
     new Chart(ctx, {
         type: 'bar',
         data: {
             labels: ['Th1','Th2','Th3','Th4','Th5','Th6','Th7','Th8','Th9','Th10','Th11','Th12'],
             datasets: [{
                 label: 'Doanh thu (VNĐ)',
-                data: @json($doanhThuTheoThang),
+                data: doanhThuTheoThang,
                 backgroundColor: 'rgba(13, 110, 253, 0.75)',
                 borderRadius: 6
             }]
