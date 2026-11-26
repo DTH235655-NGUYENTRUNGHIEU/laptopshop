@@ -11,7 +11,7 @@
                 <label class="form-label" for="tinhtrang">Tên tình trạng <span class="text-danger">*</span></label>
                 <input type="text" class="form-control @error('tinhtrang') is-invalid @enderror" id="tinhtrang" name="tinhtrang" value="{{ old('tinhtrang') }}" placeholder="VD: Chờ xác nhận, Đang giao hàng..." required />
                 @error('tinhtrang')
-sua.blade.php
+
                     <div class="invalid-feedback"><strong>{{ $message }}</strong></div>
                 @enderror
             </div>
