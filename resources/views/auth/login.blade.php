@@ -4,8 +4,8 @@
 <div class="container">
     <div class="row justify-content-center">
         <div class="col-md-8">
-            <div class="card">
-                <div class="card-header">{{ __('Login') }}</div>
+            <div class="card shadow-sm">
+                <div class="card-header fw-semibold">{{ __('Login') }}</div>
 
                 <div class="card-body">
                     <form method="POST" action="{{ route('login') }}">
@@ -64,6 +64,17 @@
                                 @endif
                             </div>
                         </div>
+
+                        @if (Route::has('google.login'))
+                            <div class="row mt-3">
+                                <div class="col-md-6 offset-md-4">
+                                    <hr class="my-3" />
+                                    <a href="{{ route('google.login') }}" class="btn btn-outline-danger w-100">
+                                        <i class="fa-brands fa-google me-1"></i> Đăng nhập bằng tài khoản Google
+                                    </a>
+                                </div>
+                            </div>
+                        @endif
                     </form>
                 </div>
             </div>
