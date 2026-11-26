@@ -2,16 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-
-class PhieuNhapController extends Controller
-{
-    //
-}
-<?php
-
-namespace App\Http\Controllers;
-
 use App\Models\NhaCungCap;
 use App\Models\PhieuNhap;
 use App\Models\PhieuNhap_ChiTiet;
