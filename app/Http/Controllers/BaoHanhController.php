@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\DonHang;
 use App\Models\HoaDon_ChiTiet;
 use App\Models\PhieuBaoHanh;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -53,25 +55,65 @@ class BaoHanhController extends Controller
     // =========================================================================
     public function getKhachHangBaoHanh()
     {
-        $userId = Auth::id();
+        $user = User::findOrFail(Auth::id());
+        $userId = $user->id;
+        $sdtKhach = trim((string) ($user->sodienthoai ?? ''));
 
-        $thietBiDaMua = HoaDon_ChiTiet::with('HoaDon')
-            ->whereHas('HoaDon', function ($q) use ($userId) {
-                $q->where('user_id', $userId)
-                    ->where('trangthai', '!=', 'da_huy');
+        // Lấy tất cả thiết bị thuộc hóa đơn hợp lệ của khách (theo user_id, đơn hàng của khách, hoặc khớp SĐT)
+        $thietBiDaMua = HoaDon_ChiTiet::with(['HoaDon', 'PhieuBaoHanh'])
+            ->whereHas('HoaDon', function ($q) use ($userId, $sdtKhach) {
+                $q->where('trangthai', '!=', 'da_huy')
+                    ->where(function ($sub) use ($userId, $sdtKhach) {
+                        $sub->where('user_id', $userId)
+                            ->orWhereHas('DonHang', function ($dh) use ($userId) {
+                                $dh->where('user_id', $userId);
+                            });
+                        if ($sdtKhach !== '') {
+                            $sub->orWhere('sodienthoai', $sdtKhach);
+                        }
+                    });
             })
-            ->whereNotNull('serial_number')
             ->orderByDesc('id')
             ->get();
 
-        $phieuBaoHanh = PhieuBaoHanh::with(['HoaDon_ChiTiet.HoaDon', 'NhanVien'])
+        // Liệt kê đơn hàng chưa hủy nhưng cửa hàng chưa bấm Xuất hóa đơn
+        $donHangChuaXuatHD = DonHang::with('TinhTrang')
             ->where('user_id', $userId)
+            ->where('tinhtrang_id', '!=', 6)
+            ->whereDoesntHave('HoaDon', function ($q) {
+                $q->where('trangthai', '!=', 'da_huy');
+            })
+            ->orderByDesc('created_at')
+            ->get();
+
+        $dsHdctId = $thietBiDaMua->pluck('id')->all();
+        $dsSerial = $thietBiDaMua->pluck('serial_number')->filter()->unique()->values()->all();
+
+        // Đồng bộ 2 chiều: hiện cả phiếu khách gửi lẫn phiếu Admin lập theo user_id / SĐT / hóa đơn / Serial
+        $phieuBaoHanh = PhieuBaoHanh::with(['HoaDon_ChiTiet.HoaDon', 'NhanVien'])
+            ->where(function ($q) use ($userId, $sdtKhach, $dsHdctId, $dsSerial) {
+                $q->where('user_id', $userId);
+                if ($sdtKhach !== '') {
+                    $q->orWhere('sodienthoai', $sdtKhach);
+                }
+                if (!empty($dsHdctId)) {
+                    $q->orWhereIn('hoadon_chitiet_id', $dsHdctId);
+                }
+                if (!empty($dsSerial)) {
+                    $q->orWhereIn('serial_number', $dsSerial);
+                }
+            })
             ->orderByDesc('ngaytiepnhan')
             ->paginate(8);
 
         $trangThaiMap = PhieuBaoHanh::danhSachTrangThai();
 
-        return view('user.baohanh', compact('thietBiDaMua', 'phieuBaoHanh', 'trangThaiMap'));
+        return view('user.baohanh', compact(
+            'thietBiDaMua',
+            'donHangChuaXuatHD',
+            'phieuBaoHanh',
+            'trangThaiMap'
+        ));
     }
 
     public function postKhachHangYeuCau(Request $request)
@@ -82,11 +124,23 @@ class BaoHanhController extends Controller
             'phukien_kemtheo' => ['nullable', 'string', 'max:255'],
         ]);
 
+        $user = User::findOrFail(Auth::id());
+        $userId = $user->id;
+        $sdtKhach = trim((string) ($user->sodienthoai ?? ''));
+
         $hdct = HoaDon_ChiTiet::with('HoaDon')
             ->where('id', $request->hoadon_chitiet_id)
-            ->whereHas('HoaDon', function ($q) {
-                $q->where('user_id', Auth::id())
-                    ->where('trangthai', '!=', 'da_huy');
+            ->whereHas('HoaDon', function ($q) use ($userId, $sdtKhach) {
+                $q->where('trangthai', '!=', 'da_huy')
+                    ->where(function ($sub) use ($userId, $sdtKhach) {
+                        $sub->where('user_id', $userId)
+                            ->orWhereHas('DonHang', function ($dh) use ($userId) {
+                                $dh->where('user_id', $userId);
+                            });
+                        if ($sdtKhach !== '') {
+                            $sub->orWhere('sodienthoai', $sdtKhach);
+                        }
+                    });
             })
             ->firstOrFail();
 
@@ -96,21 +150,24 @@ class BaoHanhController extends Controller
 
         if ($dangXuLy) {
             return redirect()->route('user.baohanh')
-                ->with('warning', 'Máy mang số Serial "' . $hdct->serial_number . '" hiện đang có một phiếu bảo hành chưa hoàn tất.');
+                ->with('warning', 'Thiết bị này hiện đang có một phiếu bảo hành chưa hoàn tất.');
         }
 
         $maPhieu = $this->sinhMaPhieu();
+        $serial = !empty($hdct->serial_number)
+            ? strtoupper(trim((string) $hdct->serial_number))
+            : ('SN-HD' . $hdct->hoadon_id . '-' . $hdct->id);
 
         PhieuBaoHanh::create([
             'maphieu' => $maPhieu,
             'hoadon_chitiet_id' => $hdct->id,
             'sanpham_id' => $hdct->sanpham_id,
-            'user_id' => Auth::id(),
+            'user_id' => $userId,
             'nhanvien_id' => null,
-            'serial_number' => strtoupper(trim((string) $hdct->serial_number)),
+            'serial_number' => $serial,
             'tensanpham' => $hdct->tensanpham_luu,
-            'ten_khachhang' => $hdct->HoaDon->ten_khachhang ?? Auth::user()->name,
-            'sodienthoai' => $hdct->HoaDon->sodienthoai ?? (Auth::user()->sodienthoai ?? ''),
+            'ten_khachhang' => $hdct->HoaDon->ten_khachhang ?? $user->name,
+            'sodienthoai' => $hdct->HoaDon->sodienthoai ?? ($user->sodienthoai ?? ''),
             'ngaytiepnhan' => now(),
             'ngaytra_dukien' => now()->addDays(7)->toDateString(),
             'mota_loi' => trim($request->mota_loi),
@@ -120,7 +177,7 @@ class BaoHanhController extends Controller
         ]);
 
         return redirect()->route('user.baohanh')
-            ->with('success', 'Đã gửi yêu cầu bảo hành mã "' . $maPhieu . '". Bạn vui lòng mang máy kèm số Serial đến cửa hàng hoặc chờ kỹ thuật viên liên hệ.');
+            ->with('success', 'Đã gửi yêu cầu bảo hành mã "' . $maPhieu . '". Kỹ thuật viên sẽ tiếp nhận và cập nhật tiến độ ngay trên trang này.');
     }
 
     // =========================================================================
@@ -159,7 +216,6 @@ class BaoHanhController extends Controller
     {
         $maPhieuGoiY = $this->sinhMaPhieu();
 
-        // Lấy danh sách các máy đã xuất hóa đơn hợp lệ để nhân viên chọn nhanh theo Serial
         $danhSachMayDaBan = HoaDon_ChiTiet::with('HoaDon')
             ->whereHas('HoaDon', function ($q) {
                 $q->where('trangthai', '!=', 'da_huy');
@@ -190,27 +246,44 @@ class BaoHanhController extends Controller
             'trangthai' => ['required', 'in:cho_tiep_nhan,dang_kiem_tra,gui_hang,da_sua_xong,da_tra_khach,tu_choi'],
         ]);
 
+        $serial = strtoupper(trim($request->serial_number));
+        $sdt = trim($request->sodienthoai);
+        $hdctId = $request->filled('hoadon_chitiet_id') ? (int) $request->hoadon_chitiet_id : null;
         $sanphamId = null;
         $userId = null;
 
-        if ($request->filled('hoadon_chitiet_id')) {
-            $hdct = HoaDon_ChiTiet::with('HoaDon')->find($request->hoadon_chitiet_id);
-            if ($hdct) {
-                $sanphamId = $hdct->sanpham_id;
-                $userId = $hdct->HoaDon->user_id ?? null;
-            }
+        // Tự động khớp dòng hóa đơn theo ID đã chọn hoặc theo Serial Number
+        $hdct = $hdctId
+            ? HoaDon_ChiTiet::with('HoaDon.DonHang')->find($hdctId)
+            : HoaDon_ChiTiet::with('HoaDon.DonHang')
+                ->where('serial_number', $serial)
+                ->whereHas('HoaDon', function ($q) {
+                    $q->where('trangthai', '!=', 'da_huy');
+                })
+                ->orderByDesc('id')
+                ->first();
+
+        if ($hdct) {
+            $hdctId = $hdct->id;
+            $sanphamId = $hdct->sanpham_id;
+            $userId = $hdct->HoaDon->user_id ?? ($hdct->HoaDon->DonHang->user_id ?? null);
+        }
+
+        // Nếu vẫn chưa gắn được user_id (nhập tay hoặc hóa đơn tại quầy), tự khớp theo SĐT khách hàng
+        if (!$userId && $sdt !== '') {
+            $userId = User::where('sodienthoai', $sdt)->value('id');
         }
 
         $orm = PhieuBaoHanh::create([
             'maphieu' => strtoupper(trim($request->maphieu)),
-            'hoadon_chitiet_id' => $request->filled('hoadon_chitiet_id') ? $request->hoadon_chitiet_id : null,
+            'hoadon_chitiet_id' => $hdctId,
             'sanpham_id' => $sanphamId,
             'user_id' => $userId,
             'nhanvien_id' => Auth::id(),
-            'serial_number' => strtoupper(trim($request->serial_number)),
+            'serial_number' => $serial,
             'tensanpham' => trim($request->tensanpham),
             'ten_khachhang' => trim($request->ten_khachhang),
-            'sodienthoai' => trim($request->sodienthoai),
+            'sodienthoai' => $sdt,
             'ngaytiepnhan' => $request->ngaytiepnhan,
             'ngaytra_dukien' => $request->filled('ngaytra_dukien') ? $request->ngaytra_dukien : null,
             'ngaytra_thucte' => $request->trangthai === 'da_tra_khach' ? now() : null,
@@ -222,7 +295,7 @@ class BaoHanhController extends Controller
         ]);
 
         return redirect()->route('admin.baohanh')
-            ->with('success', 'Đã lập phiếu tiếp nhận bảo hành "' . $orm->maphieu . '" thành công.');
+            ->with('success', 'Đã lập phiếu tiếp nhận bảo hành "' . $orm->maphieu . '" và đồng bộ sang tài khoản khách hàng.');
     }
 
     public function getSua(int $id)
@@ -245,7 +318,14 @@ class BaoHanhController extends Controller
             'trangthai' => ['required', 'in:cho_tiep_nhan,dang_kiem_tra,gui_hang,da_sua_xong,da_tra_khach,tu_choi'],
         ]);
 
-        $orm = PhieuBaoHanh::findOrFail($id);
+        $orm = PhieuBaoHanh::with('HoaDon_ChiTiet.HoaDon')->findOrFail($id);
+
+        // Tự động bổ sung user_id nếu phiếu cũ chưa được gắn tài khoản khách
+        if (!$orm->user_id) {
+            $orm->user_id = $orm->HoaDon_ChiTiet->HoaDon->user_id
+                ?? User::where('sodienthoai', $orm->sodienthoai)->value('id');
+        }
+
         $orm->nhanvien_id = Auth::id();
         $orm->ngaytra_dukien = $request->filled('ngaytra_dukien') ? $request->ngaytra_dukien : null;
         $orm->mota_loi = trim($request->mota_loi);
