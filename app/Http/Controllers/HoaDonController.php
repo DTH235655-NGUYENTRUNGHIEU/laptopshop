@@ -10,6 +10,7 @@ use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use RuntimeException;
 
 class HoaDonController extends Controller
 {
@@ -37,7 +38,7 @@ class HoaDonController extends Controller
         return view('admin.hoadon.danhsach', compact('hoadon'));
     }
 
-    public function getLapHoaDon($donhang_id)
+    public function getLapHoaDon(int $donhang_id)
     {
         $donhang = DonHang::with([
             'User',
@@ -58,7 +59,10 @@ class HoaDonController extends Controller
         }
 
         $demHomNay = HoaDon::whereDate('created_at', today())->count() + 1;
-        $soHoaDonGoiY = 'HD' . date('Ymd') . '-' . str_pad((string) $demHomNay, 4, '0', STR_PAD_LEFT);
+        do {
+            $soHoaDonGoiY = 'HD' . date('Ymd') . '-' . str_pad((string) $demHomNay, 4, '0', STR_PAD_LEFT);
+            $demHomNay++;
+        } while (HoaDon::where('sohoadon', $soHoaDonGoiY)->exists());
 
         // Tách từng chiếc laptop thành 1 dòng riêng để nhập Serial Number bảo hành
         $danhSachMay = [];
@@ -81,7 +85,7 @@ class HoaDonController extends Controller
         return view('admin.hoadon.lap', compact('donhang', 'soHoaDonGoiY', 'danhSachMay', 'tamTinh'));
     }
 
-    public function postLapHoaDon(Request $request, $donhang_id)
+    public function postLapHoaDon(Request $request, int $donhang_id)
     {
         $request->validate([
             'sohoadon' => ['required', 'string', 'max:30', 'unique:hoadon,sohoadon'],
@@ -108,11 +112,11 @@ class HoaDonController extends Controller
                     ->firstOrFail();
 
                 if ($donhang->HoaDon) {
-                    throw new \RuntimeException('Đơn hàng này đã có hóa đơn ' . $donhang->HoaDon->sohoadon . '.');
+                    throw new RuntimeException('Đơn hàng này đã có hóa đơn ' . $donhang->HoaDon->sohoadon . '.');
                 }
 
                 if ((int) $donhang->tinhtrang_id === 6) {
-                    throw new \RuntimeException('Không thể xuất hóa đơn cho đơn hàng đã hủy.');
+                    throw new RuntimeException('Không thể xuất hóa đơn cho đơn hàng đã hủy.');
                 }
 
                 // Kiểm tra và trừ tồn kho theo từng sản phẩm trong đơn
@@ -127,7 +131,7 @@ class HoaDonController extends Controller
                     $sp = SanPham::where('id', $spId)->lockForUpdate()->first();
                     if (!$sp || $sp->soluong < $slBan) {
                         $tenSp = $sp ? $sp->tensanpham : ('ID #' . $spId);
-                        throw new \RuntimeException('Không đủ tồn kho cho "' . $tenSp . '" (cần ' . $slBan . ', hiện chỉ còn ' . ($sp->soluong ?? 0) . ').');
+                        throw new RuntimeException('Không đủ tồn kho cho "' . $tenSp . '" (cần ' . $slBan . ', hiện chỉ còn ' . ($sp->soluong ?? 0) . ').');
                     }
                     $sp->decrement('soluong', $slBan);
                 }
@@ -161,7 +165,7 @@ class HoaDonController extends Controller
                     'ghichu' => $request->ghichu,
                 ]);
 
-                // Lưu chi tiết hóa đơn từng máy kèm Serial Number & ngày hết hạn bảo hành
+                // Lưu chi tiết hóa đơn từng máy kèm Serial Number (tự sinh nếu bỏ trống) & ngày hết hạn bảo hành
                 $serials = $request->input('serial_number', []);
                 $index = 0;
 
@@ -173,7 +177,7 @@ class HoaDonController extends Controller
                     for ($k = 1; $k <= $ct->soluongban; $k++) {
                         $sn = isset($serials[$index]) && trim((string) $serials[$index]) !== ''
                             ? strtoupper(trim((string) $serials[$index]))
-                            : null;
+                            : ('SN-' . ($sp->masanpham ?? 'SP') . '-' . $hd->id . '-' . ($index + 1));
 
                         HoaDon_ChiTiet::create([
                             'hoadon_id' => $hd->id,
@@ -202,7 +206,7 @@ class HoaDonController extends Controller
 
                 return $hd;
             });
-        } catch (\RuntimeException $e) {
+        } catch (RuntimeException $e) {
             return redirect()->back()->withInput()->with('error', $e->getMessage());
         }
 
@@ -210,7 +214,7 @@ class HoaDonController extends Controller
             ->with('success', 'Đã xuất hóa đơn "' . $hoaDon->sohoadon . '" và tự động trừ tồn kho thành công.');
     }
 
-    public function getChiTiet($id)
+    public function getChiTiet(int $id)
     {
         $hoadon = HoaDon::with([
             'DonHang',
@@ -222,7 +226,7 @@ class HoaDonController extends Controller
         return view('admin.hoadon.chitiet', compact('hoadon'));
     }
 
-    public function getInHoaDon($id)
+    public function getInHoaDon(int $id)
     {
         $hoadon = HoaDon::with([
             'DonHang',
@@ -233,7 +237,7 @@ class HoaDonController extends Controller
         return view('admin.hoadon.in', compact('hoadon'));
     }
 
-    public function postHuy($id)
+    public function postHuy(int $id)
     {
         try {
             $soHoaDon = DB::transaction(function () use ($id) {
@@ -243,7 +247,7 @@ class HoaDonController extends Controller
                     ->firstOrFail();
 
                 if ($hoadon->trangthai === 'da_huy') {
-                    throw new \RuntimeException('Hóa đơn "' . $hoadon->sohoadon . '" đã ở trạng thái hủy trước đó.');
+                    throw new RuntimeException('Hóa đơn "' . $hoadon->sohoadon . '" đã ở trạng thái hủy trước đó.');
                 }
 
                 // Hoàn trả tồn kho cho các máy đã xuất trong hóa đơn
@@ -261,7 +265,7 @@ class HoaDonController extends Controller
 
                 return $hoadon->sohoadon;
             });
-        } catch (\RuntimeException $e) {
+        } catch (RuntimeException $e) {
             return redirect()->route('admin.hoadon.chitiet', ['id' => $id])
                 ->with('warning', $e->getMessage());
         }
