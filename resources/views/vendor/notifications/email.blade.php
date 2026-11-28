@@ -4,9 +4,9 @@
 # {{ $greeting }}
 @else
 @if ($level === 'error')
-# @lang('Whoops!')
+# @lang('Xin lỗi!')
 @else
-# @lang('Hello!')
+# @lang('Xin chào!')
 @endif
 @endif
 
@@ -39,7 +39,7 @@
 @if (! empty($salutation))
 {{ $salutation }}
 @else
-@lang('Regards,')<br>
+@lang('Trân trọng'),<br>
 {{ config('app.name') }}
 @endif
 
@@ -47,8 +47,7 @@
 @isset($actionText)
 <x-slot:subcopy>
 @lang(
-    "If you're having trouble clicking the \":actionText\" button, copy and paste the URL below\n".
-    'into your web browser:',
+    'Nếu nút ":actionText" không nhấn vào được, xin vui lòng sao chép và dán đường dẫn sau vào trình duyệt web:',
     [
         'actionText' => $actionText,
     ]
