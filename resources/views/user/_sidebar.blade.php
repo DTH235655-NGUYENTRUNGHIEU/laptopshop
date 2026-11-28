@@ -15,6 +15,10 @@
            class="list-group-item list-group-item-action {{ request()->routeIs('user.donhang*') ? 'active' : '' }}">
             <i class="fa-solid fa-box-open fa-fw me-2"></i> Lịch sử đơn hàng
         </a>
+        <a href="{{ Route::has('user.baohanh') ? route('user.baohanh') : '#' }}"
+           class="list-group-item list-group-item-action {{ request()->routeIs('user.baohanh*') ? 'active' : '' }}">
+            <i class="fa-solid fa-shield-halved fa-fw me-2"></i> Bảo hành sản phẩm
+        </a>
         <a href="{{ route('user.hoso') }}"
            class="list-group-item list-group-item-action {{ request()->routeIs('user.hoso') ? 'active' : '' }}">
             <i class="fa-solid fa-user-gear fa-fw me-2"></i> Hồ sơ & Đổi mật khẩu
