@@ -22,9 +22,10 @@ use App\Http\Controllers\BannerController;
 use App\Http\Controllers\LienHeController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\BaoHanhController;
+use App\Http\Controllers\Auth\AdminLoginController;
 
 // =========================================================================
-// 1. XÁC THỰC & ĐĂNG NHẬP GOOGLE
+// 1. XÁC THỰC KHÁCH HÀNG (GUARD: WEB) & ĐĂNG NHẬP GOOGLE
 // =========================================================================
 Auth::routes();
 
@@ -71,12 +72,12 @@ Route::name('frontend.')->group(function () {
 });
 
 // =========================================================================
-// 3. PHÂN HỆ KHÁCH HÀNG (YÊU CẦU ĐĂNG NHẬP)
+// 3. PHÂN HỆ KHÁCH HÀNG (YÊU CẦU ĐĂNG NHẬP - GUARD: WEB)
 // =========================================================================
 Route::get('/khach-hang/dang-ky', [HomeController::class, 'getDangKy'])->name('user.dangky');
 Route::get('/khach-hang/dang-nhap', [HomeController::class, 'getDangNhap'])->name('user.dangnhap');
 
-Route::prefix('khach-hang')->name('user.')->middleware('auth')->group(function () {
+Route::prefix('khach-hang')->name('user.')->middleware('auth:web')->group(function () {
     Route::get('/', [KhachHangController::class, 'getHome'])->name('home');
     Route::get('/home', [KhachHangController::class, 'getHome']);
 
@@ -105,9 +106,15 @@ Route::prefix('khach-hang')->name('user.')->middleware('auth')->group(function (
 });
 
 // =========================================================================
-// 4. PHÂN HỆ QUẢN TRỊ (ADMIN & STAFF)
+// 4. PHÂN HỆ QUẢN TRỊ (ADMIN & STAFF - GUARD: ADMIN)
 // =========================================================================
-Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,staff'])->group(function () {
+Route::prefix('admin')->name('admin.')->group(function () {
+    Route::get('/login', [AdminLoginController::class, 'showLoginForm'])->name('login');
+    Route::post('/login', [AdminLoginController::class, 'login'])->name('login.post');
+    Route::post('/logout', [AdminLoginController::class, 'logout'])->middleware('auth:admin')->name('logout');
+});
+
+Route::prefix('admin')->name('admin.')->middleware(['auth:admin', 'role:admin,staff'])->group(function () {
     // Dashboard tổng quan
     Route::get('/', [QuanTriVienController::class, 'getHome'])->name('home');
     Route::get('/home', [QuanTriVienController::class, 'getHome']);
