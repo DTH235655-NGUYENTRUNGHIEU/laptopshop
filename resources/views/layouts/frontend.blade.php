@@ -119,6 +119,10 @@
                         <li class="nav-item">
                             <a class="nav-link" href="{{ route('frontend.lienhe') }}">Liên hệ</a>
                         </li>
+
+                        <li class="nav-item">
+                            <a class="nav-link" href="{{ Route::has('frontend.baohanh') ? route('frontend.baohanh') : '#' }}">Bảo hành</a>
+                        </li>
                     </ul>
 
                     <!-- Giỏ hàng & Tài khoản -->
@@ -158,6 +162,11 @@
                                     <li>
                                         <a class="dropdown-item" href="{{ route('user.donhang') }}">
                                             <i class="fa-solid fa-box-open fa-fw me-1"></i> Lịch sử đơn hàng
+                                        </a>
+                                    </li>
+                                    <li>
+                                        <a class="dropdown-item" href="{{ Route::has('user.baohanh') ? route('user.baohanh') : '#' }}">
+                                            <i class="fa-solid fa-shield-halved fa-fw me-1"></i> Bảo hành sản phẩm
                                         </a>
                                     </li>
                                     <li><hr class="dropdown-divider" /></li>
@@ -247,6 +256,7 @@
                         <li><a class="footer-link" href="{{ route('frontend.gioithieu') }}">Giới thiệu cửa hàng</a></li>
                         <li><a class="footer-link" href="{{ route('frontend.baiviet') }}">Tin tức & Thủ thuật Laptop</a></li>
                         <li><a class="footer-link" href="{{ route('frontend.lienhe') }}">Liên hệ tư vấn cấu hình</a></li>
+                        <li><a class="footer-link" href="{{ Route::has('frontend.baohanh') ? route('frontend.baohanh') : '#' }}">Tra cứu bảo hành điện tử</a></li>
                         <li><a class="footer-link" href="{{ route('frontend.giohang') }}">Kiểm tra giỏ hàng</a></li>
                     </ul>
                 </div>
