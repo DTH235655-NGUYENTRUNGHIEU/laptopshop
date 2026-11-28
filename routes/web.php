@@ -21,7 +21,7 @@ use App\Http\Controllers\BinhLuanBaiVietController;
 use App\Http\Controllers\BannerController;
 use App\Http\Controllers\LienHeController;
 use App\Http\Controllers\UserController;
-
+use App\Http\Controllers\BaoHanhController;
 // =========================================================================
 // 1. XÁC THỰC & ĐĂNG NHẬP GOOGLE
 // =========================================================================
@@ -64,6 +64,9 @@ Route::name('frontend.')->group(function () {
     Route::get('/lien-he', [HomeController::class, 'getLienHe'])->name('lienhe');
     Route::post('/lien-he', [HomeController::class, 'postLienHe']);
     Route::get('/gioi-thieu', [HomeController::class, 'getGioiThieu'])->name('gioithieu');
+
+    // Bảo hành sản phẩm
+    Route::get('/tra-cuu-bao-hanh', [BaoHanhController::class, 'getTraCuu'])->name('frontend.baohanh');
 });
 
 // =========================================================================
@@ -94,6 +97,9 @@ Route::prefix('khach-hang')->name('user.')->middleware('auth')->group(function (
     Route::get('/ho-so', [KhachHangController::class, 'getHoSo'])->name('hoso');
     Route::post('/ho-so', [KhachHangController::class, 'postHoSo']);
     Route::post('/doi-mat-khau', [KhachHangController::class, 'postDoiMatKhau'])->name('doimatkhau');
+    // Quản lý phiếu bảo hành
+    Route::get('/bao-hanh', [BaoHanhController::class, 'getKhachHangBaoHanh'])->name('baohanh');
+    Route::post('/bao-hanh/yeu-cau', [BaoHanhController::class, 'postKhachHangYeuCau'])->name('baohanh.yeucau');
 });
 
 // =========================================================================
@@ -233,4 +239,13 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'role:admin,staff'])
         Route::post('/nguoidung/sua/{id}', [UserController::class, 'postSua']);
         Route::get('/nguoidung/xoa/{id}', [UserController::class, 'getXoa'])->name('nguoidung.xoa');
     });
+
+    // --- Hệ thống: Quản lý phiếu bảo hành ---
+    Route::get('/baohanh', [BaoHanhController::class, 'getDanhSach'])->name('baohanh');
+    Route::get('/baohanh/them', [BaoHanhController::class, 'getThem'])->name('baohanh.them');
+    Route::post('/baohanh/them', [BaoHanhController::class, 'postThem']);
+    Route::get('/baohanh/sua/{id}', [BaoHanhController::class, 'getSua'])->name('baohanh.sua');
+    Route::post('/baohanh/sua/{id}', [BaoHanhController::class, 'postSua']);
+    Route::get('/baohanh/in/{id}', [BaoHanhController::class, 'getInPhieu'])->name('baohanh.in');
+    Route::get('/baohanh/xoa/{id}', [BaoHanhController::class, 'getXoa'])->name('baohanh.xoa');
 });
