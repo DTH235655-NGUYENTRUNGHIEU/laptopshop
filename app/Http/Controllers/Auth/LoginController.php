@@ -26,9 +26,9 @@ class LoginController extends Controller
 
     public function logout(Request $request)
     {
-        // Chỉ đăng xuất guard web, KHÔNG gọi session()->invalidate() để giữ nguyên phiên Admin ở tab khác
         Auth::guard('web')->logout();
-        $request->session()->forget('voucher');
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
 
         return redirect()->route('frontend.home')
             ->with('success', 'Đã đăng xuất tài khoản khách hàng.');
