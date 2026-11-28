@@ -5,7 +5,14 @@
     <div class="row justify-content-center">
         <div class="col-md-8">
             <div class="card shadow-sm">
-                <div class="card-header fw-semibold">{{ __('Login') }}</div>
+                <div class="card-header fw-semibold d-flex justify-content-between align-items-center">
+                    <span>Đăng nhập Khách hàng</span>
+                    @if (Route::has('admin.login'))
+                        <a href="{{ route('admin.login') }}" class="btn btn-outline-dark btn-sm">
+                            <i class="fa-solid fa-user-shield me-1"></i> Đăng nhập Quản trị
+                        </a>
+                    @endif
+                </div>
 
                 <div class="card-body">
                     <form method="POST" action="{{ route('login') }}">
