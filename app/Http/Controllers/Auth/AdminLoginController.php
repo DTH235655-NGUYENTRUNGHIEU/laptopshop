@@ -39,7 +39,6 @@ class AdminLoginController extends Controller
                     ]);
             }
 
-            // Chỉ đổi session ID (giữ nguyên phiên khách hàng ở guard web nếu đang mở ở tab khác)
             $request->session()->regenerate();
 
             return redirect()->intended(route('admin.home'));
@@ -54,8 +53,9 @@ class AdminLoginController extends Controller
 
     public function logout(Request $request)
     {
-        // Chỉ đăng xuất guard admin, KHÔNG invalidate() để không làm văng tab Khách hàng
         Auth::guard('admin')->logout();
+        $request->session()->invalidate();
+        $request->session()->regenerateToken();
 
         return redirect()->route('admin.login')
             ->with('success', 'Đã đăng xuất khỏi trang quản trị.');
